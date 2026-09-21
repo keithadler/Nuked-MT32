@@ -10,6 +10,13 @@ The reference is **Munt** (`munt/munt`) rendering the same note sequence with
 behavioral emulator, not gate-accurate, so it is a strong cross-check and not
 ground truth. Real hardware has not been consulted.
 
+**Munt is not ground truth, and that matters here.** Munt is a behavioural
+emulator, and working from a decap is precisely how this project differs from
+it. A divergence between the two is a *difference*, not proof that this core is
+wrong - on any given point Nuked-MT32 may well be the more accurate of the two.
+Nothing below should be read as "Munt is right and this is broken". Settling
+any of it needs real hardware or the silicon.
+
 Munt's default `COARSE` analog mode boosts high frequencies, so it was checked
 whether that alone explained the differences below. It does not: switching to
 `AnalogOutputMode_DIGITAL_ONLY`, which matches the digital-only path Nuked
@@ -67,11 +74,37 @@ downstream. Resolving that needs the decap.
 (-11532/+8898 against Munt's symmetric -7350/+7302), so negative peaks clip
 first and this should worsen with polyphony.
 
-**Two fixes were tried and both failed** - do not repeat them. Reworking the
+**The offset is patch-dependent and follows the partial contributions
+directly**, so it is not a clipping or accumulation artifact:
+
+| patch | mean contribution | resulting output DC |
+|-------|-------------------|---------------------|
+| 0     | -26.8             | -478                |
+| 81    | +246              | +2007               |
+
+Patch 81's offset is about 6% of full scale. Its sign and size vary with the
+timbre, so whatever causes it lives in the wave generation.
+
+**Four fixes and hypotheses were tried and all failed** - do not repeat them. Reworking the
 pan split (carry forced to 1, round-to-nearest, or plain `ot2 = oo - left`)
 reaches at best -446.16, with three of the variants byte-identical, confirming
 they are algebraically the same. Replacing the one's complement `~w1` with a
-true two's complement `-w1` reaches -451.88.
+true two's complement `-w1` reaches -451.88. The asymmetric accumulator gate
+is not it either: `accum[outch] += ot1 >> 7` is ungated while
+`accum[outch | 4] += ot2` is gated on `(ctrl & 7) != 7`, which looks like it
+would bias one channel, but measured over a chord plus rhythm `ctrl & 7` was 4
+on every active partial-sample and the gate never fired once. And silent slots
+leak nothing: over 2,057,398 slots with `oo == 0`, the summed contribution to
+both accumulators is exactly 0.
+
+### Mitigation, not a fix
+
+`--dc-block` on `nuked-mt32` and `mt32-render` applies a one-pole high pass
+(corner near 2.5 Hz) to the output, modelling the AC coupling on the real unit
+where no DC reaches the jacks. On the 34 s demo it takes the channel means from
+-565 / -140 to 0.00 / 0.00 and improves peak asymmetry from 1.21 to 1.06,
+recovering the headroom the offset was eating. It is off by default and changes
+nothing inside the LA32.
 
 The original suspicion, recorded because it was wrong, was the pan-split
 arithmetic in `la32.cpp`:
