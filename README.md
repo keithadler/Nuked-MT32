@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/hero.png" width="620" alt="Nuked-MT32">
+<img src="docs/hero.png" width="880" alt="the Nuked-MT32 front panel">
 
 # Nuked-MT32
 
@@ -49,9 +49,20 @@ actual die.
 <div align="center"><img src="docs/lcd-states.png" width="520" alt="three genuine LCD states"></div>
 
 Every character there was written by the MT-32's own firmware. Hold `RHYTHM`
-and turn the knob and the machine prints `Rhythm Part |vol> 74`, because the
-firmware is responding to the front panel — not because anything was drawn on
-top of it.
+and turn the knob and the machine prints `Rhythm Part |vol> 80`, because the
+firmware is responding to the front panel, not because anything was drawn on
+top of it:
+
+<div align="center"><img src="docs/not-a-mockup.png" width="880" alt="RHYTHM held down, the firmware writing the display"></div>
+
+Both pictures above come out of `mt32-panelshot`, which draws the panel from
+the same code the window uses, so they cannot drift away from what the program
+actually looks like:
+
+```
+mt32-panelshot CONTROL.ROM PCM.ROM out.ppm [button 0-9] [knob 0-1023]
+python3 tools/ppm2png.py out.ppm docs/hero.png
+```
 
 ## Quick start
 

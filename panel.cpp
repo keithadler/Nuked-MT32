@@ -56,19 +56,25 @@ const uint32_t COL_LED_OFF    = rgb(0x1e, 0x30, 0x22);
 
 // --- Geometry ---------------------------------------------------------------
 
-constexpr int LCD_X = 46, LCD_Y = 132;          // native 840 x 100
-constexpr int BEZEL = 11;
+// The display is drawn at half its native size. On the hardware it is a small
+// window in a wide face, and blitting 840x100 one for one made it the whole
+// panel. Two native pixels to one is still 21 pixels a character, which reads
+// perfectly well, and it puts the proportions back.
+constexpr int LCD_SCALE = 2;
+constexpr int LCD_X = 54, LCD_Y = 116;
+constexpr int LCD_DW = lcd_w / LCD_SCALE, LCD_DH = lcd_h / LCD_SCALE;
+constexpr int BEZEL = 10;
 
 // The front plate, a shade off the case, running the width of the face.
-constexpr int PLT_X = 22, PLT_Y = 26, PLT_W = 1616, PLT_H = 264;
+constexpr int PLT_X = 18, PLT_Y = 20, PLT_W = 1444, PLT_H = 240;
 
 // Ten buttons in two rows of five, which is how the hardware arranges them and
 // what the order in kButtons has always described: 1 2 3 GROUP VOLUME on top,
 // 4 5 RHYTHM SOUND MASTER beneath.
-constexpr int BTN_W = 86, BTN_H = 50, BTN_GAP = 14, BTN_ROW_GAP = 34;
-constexpr int BTN_X0 = 960, BTN_Y0 = 104;
+constexpr int BTN_W = 66, BTN_H = 46, BTN_GAP = 12, BTN_ROW_GAP = 30;
+constexpr int BTN_X0 = 724, BTN_Y0 = 82;
 
-constexpr int KNOB_CX = 1548, KNOB_CY = 168, KNOB_R = 54;
+constexpr int KNOB_CX = 1330, KNOB_CY = 140, KNOB_R = 48;
 
 // Drawing and hit testing both come through here. A row or a gap changed in
 // one and not the other is a button that looks right and clicks wrong, which
@@ -76,15 +82,23 @@ constexpr int KNOB_CX = 1548, KNOB_CY = 168, KNOB_R = 54;
 constexpr int button_x(int i) { return BTN_X0 + (i % 5) * (BTN_W + BTN_GAP); }
 constexpr int button_y(int i) { return BTN_Y0 + (i / 5) * (BTN_H + BTN_ROW_GAP); }
 
-struct ButtonDef { const char *label; const char *key; };
+// A legend can be wider than the key it labels, as it is on the hardware, so
+// the long ones are set on two lines rather than run into their neighbours.
+struct ButtonDef { const char *label; const char *label2; const char *key; };
 
 // Index is the bit in mt32.button, which matches the MT32_BUTTTON_* enum.
 // Keys 1-0 map to bits 0-9, same as the keyboard handling in main.cpp.
 const ButtonDef kButtons[10] = {
-    {"1",      "1"}, {"2",      "2"}, {"3",      "3"},
-    {"GROUP",  "4"}, {"VOLUME", "5"}, {"4",      "6"},
-    {"5",      "7"}, {"RHYTHM", "8"}, {"SOUND",  "9"},
-    {"MASTER", "0"},
+    {"1",      nullptr,  "1"},
+    {"2",      nullptr,  "2"},
+    {"3",      nullptr,  "3"},
+    {"SOUND",  "GROUP",  "4"},
+    {"VOLUME", nullptr,  "5"},
+    {"4",      nullptr,  "6"},
+    {"5",      nullptr,  "7"},
+    {"RHYTHM", nullptr,  "8"},
+    {"SOUND",  nullptr,  "9"},
+    {"MASTER", "VOLUME", "0"},
 };
 
 inline void px(uint32_t *b, int x, int y, uint32_t c)
@@ -173,6 +187,59 @@ void draw_text_centred(uint32_t *b, int cx, int y, int scale, const char *s, uin
 
 // --- Silkscreen lettering ---------------------------------------------------
 //
+// Drawn with coverage rather than with whole pixels. A stroke is a run of
+// segments; for every pixel near one, the distance from the pixel centre to
+// the segment gives how much of it the stroke covers, and that is the blend.
+// Without this the diagonals stair-step and the lettering looks like a
+// screenshot of a plotter, which is what it looked like.
+
+inline uint32_t blend(uint32_t dst, uint32_t src, float a)
+{
+    if (a <= 0.0f) return dst;
+    if (a >= 1.0f) return src;
+    int dr = dst & 0xff, dg = (dst >> 8) & 0xff, db = (dst >> 16) & 0xff;
+    int sr = src & 0xff, sg = (src >> 8) & 0xff, sb = (src >> 16) & 0xff;
+    return rgb(int(dr + (sr - dr) * a + 0.5f),
+               int(dg + (sg - dg) * a + 0.5f),
+               int(db + (sb - db) * a + 0.5f));
+}
+
+// Distance from a point to a segment, which is what the coverage is built on.
+inline float seg_dist(float px_, float py_, float x0, float y0, float x1, float y1)
+{
+    float vx = x1 - x0, vy = y1 - y0;
+    float wx = px_ - x0, wy = py_ - y0;
+    float len2 = vx * vx + vy * vy;
+    float t = len2 > 0.0f ? (wx * vx + wy * vy) / len2 : 0.0f;
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    float dx = wx - vx * t, dy = wy - vy * t;
+    return sqrtf(dx * dx + dy * dy);
+}
+
+void line_aa(uint32_t *b, float x0, float y0, float x1, float y1,
+             float half, uint32_t c)
+{
+    int lo_x = int(floorf(fminf(x0, x1) - half - 1.0f));
+    int hi_x = int(ceilf (fmaxf(x0, x1) + half + 1.0f));
+    int lo_y = int(floorf(fminf(y0, y1) - half - 1.0f));
+    int hi_y = int(ceilf (fmaxf(y0, y1) + half + 1.0f));
+    if (lo_x < 0) lo_x = 0;
+    if (lo_y < 0) lo_y = 0;
+    if (hi_x > panel_w - 1) hi_x = panel_w - 1;
+    if (hi_y > panel_h - 1) hi_y = panel_h - 1;
+
+    for (int y = lo_y; y <= hi_y; y++)
+        for (int x = lo_x; x <= hi_x; x++) {
+            float d = seg_dist(x + 0.5f, y + 0.5f, x0, y0, x1, y1);
+            float a = half + 0.5f - d;
+            if (a <= 0.0f) continue;
+            if (a > 1.0f) a = 1.0f;
+            b[y * panel_w + x] = blend(b[y * panel_w + x], c, a);
+        }
+}
+
+//
 // Drawn from the stroke font, so the labels on the case do not share the
 // display's pixel grid. `scale` is in tenths: 10 gives a capital ten pixels
 // tall. `weight` thickens the stroke for the larger sizes.
@@ -189,16 +256,19 @@ void silk(uint32_t *b, int x, int y, int scale, int weight, const char *str, uin
 {
     const int tracking = scale / 4 + 2;
     const int adv = 6 * scale / 10 + tracking;
+    // Strokes get heavier with the lettering, but not in whole pixels: a
+    // caption and a title want the same proportions, not the same nib.
+    const float half = 0.35f + 0.030f * scale * float(weight);
 
     for (const char *p = str; *p; p++, x += adv) {
         if (*p == ' ') continue;
         const uint8_t *g = panel_glyph(*p);
         for (; *g != SEND; g += 2) {
-            int x0 = x + ((g[0] >> 4) * scale) / 10;
-            int y0 = y + ((g[0] & 0x0f) * scale) / 10;
-            int x1 = x + ((g[1] >> 4) * scale) / 10;
-            int y1 = y + ((g[1] & 0x0f) * scale) / 10;
-            line(b, x0, y0, x1, y1, weight, c);
+            float x0 = x + (g[0] >> 4)     * scale / 10.0f;
+            float y0 = y + (g[0] & 0x0f)   * scale / 10.0f;
+            float x1 = x + (g[1] >> 4)     * scale / 10.0f;
+            float y1 = y + (g[1] & 0x0f)   * scale / 10.0f;
+            line_aa(b, x0, y0, x1, y1, half, c);
         }
     }
 }
@@ -253,30 +323,42 @@ void panel_render(mt32_t &mt32, uint32_t *out)
     // --- Identity ----------------------------------------------------------
     // Set above the display, the way the hardware sets it, in the plain
     // lettering of the panel rather than anybody's logotype.
-    silk(out, 48, 50, 11, 1, "MULTI TIMBRE", COL_SILK_DIM);
-    silk(out, 48, 72, 11, 1, "SOUND MODULE", COL_SILK_DIM);
-    silk(out, 214, 46, 34, 2, "MT-32", COL_SILK);
-    silk(out, 214, 92, 11, 1, "NUKED-MT32 EMULATOR", COL_SILK_DIM);
+    silk(out, 48, 46, 10, 1, "MULTI TIMBRE", COL_SILK_DIM);
+    silk(out, 48, 66, 10, 1, "SOUND MODULE", COL_SILK_DIM);
+    silk(out, 206, 42, 30, 2, "MT-32", COL_SILK);
+    silk(out, 206, 84, 10, 1, "NUKED-MT32 EMULATOR", COL_SILK_DIM);
 
     // --- Display -----------------------------------------------------------
     for (int k = 5; k >= 1; k--)
         round_rect(out, LCD_X - BEZEL - k, LCD_Y - BEZEL - k,
-                   lcd_w + (BEZEL + k) * 2, lcd_h + (BEZEL + k) * 2, 3 + k,
+                   LCD_DW + (BEZEL + k) * 2, LCD_DH + (BEZEL + k) * 2, 3 + k,
                    rgb(0x16 + (5 - k), 0x28 + (5 - k) * 2, 0x22 + (5 - k)), COL_GLOW);
     fill_rect(out, LCD_X - BEZEL, LCD_Y - BEZEL,
-              lcd_w + BEZEL * 2, lcd_h + BEZEL * 2, COL_BEZEL);
-    fill_rect(out, LCD_X - BEZEL, LCD_Y - BEZEL, lcd_w + BEZEL * 2, 2, COL_BEZEL_LIP);
-    for (int y = 0; y < lcd_h; y++)
-        for (int x = 0; x < lcd_w; x++)
-            px(out, LCD_X + x, LCD_Y + y, mt32.lcd_buffer[y][x]);
+              LCD_DW + BEZEL * 2, LCD_DH + BEZEL * 2, COL_BEZEL);
+    fill_rect(out, LCD_X - BEZEL, LCD_Y - BEZEL, LCD_DW + BEZEL * 2, 2, COL_BEZEL_LIP);
 
-    silk(out, LCD_X, LCD_Y + lcd_h + BEZEL + 12, 12, 1, "MIDI MESSAGE", COL_SILK_DIM);
+    // Averaged down rather than sampled, so a thin stroke in the character
+    // cell stays visible instead of falling between two source pixels.
+    for (int y = 0; y < LCD_DH; y++)
+        for (int x = 0; x < LCD_DW; x++) {
+            unsigned r = 0, g = 0, b = 0;
+            for (int j = 0; j < LCD_SCALE; j++)
+                for (int i = 0; i < LCD_SCALE; i++) {
+                    uint32_t c = mt32.lcd_buffer[y * LCD_SCALE + j][x * LCD_SCALE + i];
+                    r += c & 0xff; g += (c >> 8) & 0xff; b += (c >> 16) & 0xff;
+                }
+            const unsigned n = LCD_SCALE * LCD_SCALE;
+            px(out, LCD_X + x, LCD_Y + y, rgb(int(r / n), int(g / n), int(b / n)));
+        }
 
-    // Power lamp, at the near end of the display.
-    silk(out, LCD_X + 690, LCD_Y + lcd_h + BEZEL + 12, 12, 1, "POWER", COL_SILK_DIM);
-    disc(out, LCD_X + 812, LCD_Y + lcd_h + BEZEL + 17, 7, rgb(0x2c, 0x2c, 0x30),
+    silk(out, LCD_X - BEZEL, LCD_Y + LCD_DH + BEZEL + 12, 11, 1,
+         "MIDI MESSAGE", COL_SILK_DIM);
+
+    // Power lamp, under the near end of the display.
+    silk(out, LCD_X + 250, LCD_Y + LCD_DH + BEZEL + 12, 11, 1, "POWER", COL_SILK_DIM);
+    disc(out, LCD_X + 360, LCD_Y + LCD_DH + BEZEL + 17, 7, rgb(0x2c, 0x2c, 0x30),
          rgb(0x10, 0x10, 0x12));
-    disc(out, LCD_X + 812, LCD_Y + lcd_h + BEZEL + 17, 4,
+    disc(out, LCD_X + 360, LCD_Y + LCD_DH + BEZEL + 17, 4,
          mt32.lcd_is_on() ? COL_LED_ON : COL_LED_OFF, COL_BEZEL);
 
     // --- Buttons -----------------------------------------------------------
@@ -309,9 +391,17 @@ void panel_render(mt32_t &mt32, uint32_t *out)
         }
         // A numbered key carries its digit and needs nothing underneath; a
         // function key is named below it, in the pale blue used for those.
-        if (!numbered)
-            silk_centred(out, bx + BTN_W / 2, by + BTN_H + 7, 11, 1,
-                         kButtons[i].label, COL_LABEL);
+        if (!numbered) {
+            const int lh = 13;
+            int n = kButtons[i].label2 ? 2 : 1;
+            // above on the top row, below on the bottom, so a legend never
+            // sits between two keys and belongs to neither
+            int ly = (i < 5) ? by - 6 - n * lh : by + BTN_H + 7;
+            silk_centred(out, bx + BTN_W / 2, ly, 10, 1, kButtons[i].label, COL_LABEL);
+            if (kButtons[i].label2)
+                silk_centred(out, bx + BTN_W / 2, ly + lh, 10, 1,
+                             kButtons[i].label2, COL_LABEL);
+        }
         draw_text_centred(out, bx + BTN_W / 2, by + BTN_H - 13, 1,
                           kButtons[i].key, rgb(0x6e, 0x72, 0x78));
     }

@@ -45,7 +45,9 @@ static const uint8_t panel_glyph_G[] = { S(5,0,1,0), S(1,0,0,2), S(0,2,0,7),
                                          S(6,6,3,6), SEND };
 static const uint8_t panel_glyph_H[] = { S(0,0,0,9), S(6,0,6,9), S(0,4,6,4), SEND };
 static const uint8_t panel_glyph_I[] = { S(1,0,5,0), S(3,0,3,9), S(1,9,5,9), SEND };
-static const uint8_t panel_glyph_J[] = { S(4,0,4,7), S(4,7,3,9), S(3,9,1,9), S(1,9,0,7), SEND };
+/* with a head serif: without one it reads as a stray descender */
+static const uint8_t panel_glyph_J[] = { S(2,0,6,0), S(4,0,4,7), S(4,7,3,9),
+                                         S(3,9,1,9), S(1,9,0,7), SEND };
 static const uint8_t panel_glyph_K[] = { S(0,0,0,9), S(6,0,0,5), S(2,3,6,9), SEND };
 static const uint8_t panel_glyph_L[] = { S(0,0,0,9), S(0,9,6,9), SEND };
 static const uint8_t panel_glyph_M[] = { S(0,9,0,0), S(0,0,3,4), S(3,4,6,0), S(6,0,6,9), SEND };
@@ -77,8 +79,10 @@ static const uint8_t panel_glyph_0[] = { S(1,0,5,0), S(5,0,6,2), S(6,2,6,7), S(6
 static const uint8_t panel_glyph_1[] = { S(1,2,3,0), S(3,0,3,9), S(1,9,5,9), SEND };
 static const uint8_t panel_glyph_2[] = { S(0,2,1,0), S(1,0,5,0), S(5,0,6,2), S(6,2,0,9),
                                          S(0,9,6,9), SEND };
-static const uint8_t panel_glyph_3[] = { S(0,0,6,0), S(6,0,3,4), S(3,4,5,4), S(5,4,6,6),
-                                         S(6,6,5,9), S(5,9,1,9), S(1,9,0,8), SEND };
+/* two bowls, not a flat top and a diagonal: that shape reads as a Z */
+static const uint8_t panel_glyph_3[] = { S(0,1,1,0), S(1,0,5,0), S(5,0,6,2), S(6,2,5,4),
+                                         S(5,4,2,4), S(5,4,6,6), S(6,6,5,9), S(5,9,1,9),
+                                         S(1,9,0,8), SEND };
 static const uint8_t panel_glyph_4[] = { S(5,9,5,0), S(5,0,0,6), S(0,6,6,6), SEND };
 static const uint8_t panel_glyph_5[] = { S(6,0,0,0), S(0,0,0,4), S(0,4,4,4), S(4,4,6,6),
                                          S(6,6,5,9), S(5,9,1,9), S(1,9,0,8), SEND };
@@ -90,9 +94,10 @@ static const uint8_t panel_glyph_8[] = { S(1,0,5,0), S(5,0,6,2), S(6,2,5,4), S(5
                                          S(1,4,0,2), S(0,2,1,0), S(1,4,0,6), S(0,6,0,7),
                                          S(0,7,1,9), S(1,9,5,9), S(5,9,6,7), S(6,7,6,6),
                                          S(6,6,5,4), SEND };
-static const uint8_t panel_glyph_9[] = { S(1,9,5,9), S(5,9,6,6), S(6,6,6,2), S(6,2,5,0),
-                                         S(5,0,1,0), S(1,0,0,2), S(0,2,1,4), S(1,4,5,4),
-                                         S(5,4,6,3), SEND };
+/* the mirror of the 6: a closed bowl on top and a straight side down */
+static const uint8_t panel_glyph_9[] = { S(5,5,1,5), S(1,5,0,3), S(0,3,1,0), S(1,0,5,0),
+                                         S(5,0,6,2), S(6,2,6,7), S(6,7,5,9), S(5,9,2,9),
+                                         SEND };
 
 static const uint8_t panel_glyph_dash[]  = { S(1,5,5,5), SEND };
 static const uint8_t panel_glyph_equal[] = { S(1,3,5,3), S(1,6,5,6), SEND };

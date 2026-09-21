@@ -92,6 +92,10 @@ target_link_libraries(mt32-render PRIVATE mt32core)
 add_executable(mt32-romid tools/romid.cpp)
 target_link_libraries(mt32-romid PRIVATE mt32core)
 
+# --- Front panel capture (the picture in the README) -------------------------
+add_executable(mt32-panelshot tools/panelshot.cpp panel.cpp)
+target_link_libraries(mt32-panelshot PRIVATE mt32core)
+
 # --- End-to-end self test ---------------------------------------------------
 add_executable(mt32-selftest tools/selftest.cpp)
 target_link_libraries(mt32-selftest PRIVATE mt32core)

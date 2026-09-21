@@ -27,8 +27,11 @@
 
 class mt32_t;
 
-static constexpr int panel_w = 1660;
-static constexpr int panel_h = 340;
+// The hardware is about 400mm across and 76mm tall, so the face is roughly
+// five and a quarter times wider than it is high. Anything squarer than that
+// stops looking like the box it stands in for.
+static constexpr int panel_w = 1480;
+static constexpr int panel_h = 282;
 
 // Renders the whole panel, including the LCD, into `out` (panel_w * panel_h,
 // 0xAABBGGRR byte order matching lcd_buffer).
