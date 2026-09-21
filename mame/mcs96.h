@@ -69,6 +69,9 @@ protected:
 
 
 	mcs96_device(mt32_t *_mt32);
+	// mt32_t deletes this through an i8x9x_device*, so the destructor must be
+	// virtual or the derived destructor never runs (undefined behaviour).
+	virtual ~mcs96_device() = default;
 
 	virtual void reg_write(uint8_t addr, uint8_t data) = 0;
 	virtual uint8_t reg_read(uint8_t addr) = 0;

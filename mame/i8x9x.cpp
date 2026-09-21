@@ -21,10 +21,11 @@ i8x9x_device::i8x9x_device(mt32_t* _mt32) :
 	//m_in_p0_cb(*this, 0),
 	//m_out_p1_cb(*this), m_in_p1_cb(*this, 0xff),
 	//m_out_p2_cb(*this), m_in_p2_cb(*this, 0xc2),
+	la32_sh3(0),
 	base_timer2(0), ad_done(0), hsi_mode(0), hsi_status(0), hso_command(0), ad_command(0), hso_active(0), hso_time(0), ad_result(0), pwm_control(0),
 	port1(0), port2(0),
 	ios0(0), ios1(0), ioc0(0), ioc1(0), extint(false),
-	sbuf(0), sp_con(0), sp_stat(0), serial_send_buf(0), serial_send_timer(0), baud_reg(0), brh(false), la32_sh3(0)
+	sbuf(0), sp_con(0), sp_stat(0), serial_send_buf(0), serial_send_timer(0), baud_reg(0), brh(false)
 {
 	for (auto &hso : hso_info)
 	{
@@ -311,7 +312,7 @@ void i8x9x_device::baud_rate_w(u8 data)
 	else
 		baud_reg = (baud_reg & 0xff00) | data;
 	//if (!machine().side_effects_disabled())
-		brh = !brh;
+	brh = !brh;
 }
 
 u8 i8x9x_device::port0_r()
