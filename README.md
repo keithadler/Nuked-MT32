@@ -1,204 +1,202 @@
+<div align="center">
+
+<img src="docs/hero.png" width="620" alt="Nuked-MT32">
+
 # Nuked-MT32
 
-Roland MT-32 emulator, worked on by nukeykt in late 2024 / early 2025 and
-[released as-is](https://github.com/nukeykt/Nuked-MT32) in September 2026.
-This tree continues it with a portable build and a test harness.
+**A Roland MT-32 emulator built from the silicon up — now on macOS, Linux and Windows.**
 
-Uses the MCS-96 emulator from Olivier Galibert / MAME.
-The LA32 emulator is based on the decap by [John McMaster](https://siliconprawn.org).
+[![build](https://github.com/keithadler/Nuked-MT32/actions/workflows/build.yml/badge.svg)](https://github.com/keithadler/Nuked-MT32/actions/workflows/build.yml)
+[![license](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+![platforms](https://img.shields.io/badge/macOS%20%7C%20Linux%20%7C%20Windows-supported-brightgreen)
 
-![Nuked-MT32 front panel, playing](docs/panel-playing.png)
+</div>
 
-The window is a front panel: the buttons are clickable, the volume knob is
-draggable, and the display is the real emulated LCD driven by the firmware.
-Above, `RHYTHM` is held and the knob is at 74% - the text on the display is the
-MT-32 firmware reacting to those inputs, not something drawn on top.
+---
 
-<p align="center">
-  <img src="docs/panel-boot.png" width="49%" alt="boot splash">
-  <img src="docs/panel-idle.png" width="49%" alt="idle display">
-</p>
+The MT-32 was the sound of PC gaming from 1987 — Sierra, LucasArts, the whole
+catalogue. This emulates the machine itself: the firmware runs on an emulated
+MCS-96 CPU, and the LA32 synthesis chip is modelled from a photograph of the
+actual die.
 
-The panel follows the shape of the real unit but carries plain functional
-labels and no manufacturer branding or logo.
+[**@nukeykt**](https://github.com/nukeykt) wrote it, got it working, and
+[released it unfinished](https://github.com/nukeykt/Nuked-MT32) in September
+2026 with the repo archived. This continues that work. The emulation is his.
 
-## Status
+## What this fork adds
 
-Honest state of things, from upstream plus what has been verified here:
+| | |
+|---|---|
+| **It builds anywhere** | CMake for macOS, Linux and Windows, CI green on all three. Upstream was a Visual Studio solution with a vendored SDL2 and could not build elsewhere at all. |
+| **A front panel** | Clickable buttons, draggable volume knob, the real LCD. |
+| **Reverb** | Absent upstream. Optional here, and clearly labelled. |
+| **Headless rendering** | `mt32-render` turns a MIDI file into a WAV with no audio device. Deterministic. |
+| **ROM identification** | `mt32-romid` fingerprints ROM images by SHA-1 and tells you what you have. |
+| **Tests** | A self test and a 16-file MIDI stress battery. |
+| **Bug fixes** | Including undefined behaviour on teardown. See [below](#bugs-fixed-in-the-original). |
 
-- The emulation core (MCS-96 CPU, LA32, LCD) builds clean on Apple Silicon.
-- **It boots and it makes sound.** With an MT-32 v2.04 control ROM the machine
-  shows ` ** Roland MT-32 ** `, settles to the idle display, accepts MIDI
-  including SysEx, and renders audio. `mt32-selftest` checks all of this.
-- **The reverb chip is not emulated at all** - no decap of it is available.
-- **There are known bugs in the LA32 synth engine** that upstream could not
-  track down. Output has not been compared against real hardware, so do not
-  assume it is accurate yet.
+## The display is not a mockup
 
-### Leads on the LA32 bugs
+<div align="center"><img src="docs/lcd-states.png" width="520" alt="three genuine LCD states"></div>
 
-Measured on this tree, for whoever picks this up:
+Every character there was written by the MT-32's own firmware. Hold `RHYTHM`
+and turn the knob and the machine prints `Rhythm Part |vol> 74`, because the
+firmware is responding to the front panel — not because anything was drawn on
+top of it.
 
-- `la32.cpp` clears the accumulator with `memset(accum, 0, sizeof(accum));
-  // TEMP` at the top of every sample. `accum` is `[2][8]` and `oddeven` flips
-  per sample, so it is shaped like a ping-pong buffer - but because both banks
-  are cleared every sample and reads use the same index as writes, the
-  double-buffering currently does nothing. Whether the hardware really reads
-  the opposite bank (a one-sample delay) is unresolved.
-- The `// FIXME:` above `w49`/`w50` is **not** a stub: both are assigned by the
-  exhaustive `switch ((i >> 3) & 3)` immediately below. The comment appears to
-  flag uncertainty about the mapping, not missing code.
-- Output routing is *not* losing signal. `outch` can be 0-3 while the mix only
-  sums accumulators 2,3 (left) and 6,7 (right), which looks like dropped
-  partials - but measured over multiple parts and the rhythm channel, every
-  active partial routed to `outch 2` and 100% of accumulated energy reached
-  the output. Channels 0/1 appear to serve the separate outputs.
-- A rendered note decays for roughly 5 seconds after note-off, which looks long
-  and is worth checking against hardware or Munt.
-
-### Gotcha: MIDI channels
-
-The MT-32 assigns parts 1-8 to MIDI channels **2-9**, and rhythm to channel 10.
-Channel 1 is unassigned by default, so notes sent there are correctly ignored
-and produce silence. This is the first thing to check if you hear nothing.
-
-## DC offset
-
-The digital signal this core produces carries a patch-dependent DC offset
-(measured at -478 on patch 0 and +2007 on patch 81, the latter about 6% of
-full scale). On real hardware the output is AC coupled, so none of it reaches
-the jacks. Pass `--dc-block` to `nuked-mt32` or `mt32-render` to high-pass it
-out. That is a mitigation of the symptom, not a fix for the cause - see
-`FINDINGS.md`. It is off by default.
-
-## MIDI test battery
-
-`tests/` generates a corpus of Standard MIDI Files that stress MT-32 specific
-behaviour, renders them, and checks the output for crashes, hangs, stuck notes,
-unexpected silence, clipping and non-determinism.
+## Quick start
 
 ```sh
+brew install cmake sdl2                 # macOS
+# apt install cmake libsdl2-dev libasound2-dev libgl1-mesa-dev   # Debian/Ubuntu
+
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+
+./build/nuked-mt32 -c MT32_CONTROL.ROM -p MT32_PCM.ROM
+```
+
+Click the panel buttons or press `1`-`0`. Drag the volume knob or use `-`/`=`.
+`Esc` quits.
+
+MIDI input is automatic. On macOS the emulator publishes a virtual CoreMIDI
+destination called **Nuked-MT32** — select it as the output in any DAW — and
+also connects to every physical MIDI source it finds. Linux gets an ALSA
+sequencer port of the same name; Windows uses winmm.
+
+## ROMs
+
+**Not included, and never will be.** They are copyrighted Roland firmware.
+Supply your own, dumped from hardware you own. `.gitignore` is set up to keep
+them out of the repository.
+
+This core emulates the **"new" MT-32 (v2.x)** — a P8098 CPU with 128 KiB of
+control ROM in eight banks:
+
+| Image | Size | Notes |
+|---|---|---|
+| Control | 131072 (128 KiB) | MT-32 v2.03 / v2.04 / v2.06 / v2.07 |
+| PCM | 524288 (512 KiB) | Shared between old and new MT-32 |
+
+A 64 KiB **v1.xx control ROM will not work** — that is the "old" MT-32, a
+different machine. The loader detects this and says so. For v1.xx, use
+[Munt](https://github.com/munt/munt).
+
+Not sure what you have?
+
+```sh
+./build/mt32-romid *.rom *.ROM
+```
+
+It knows full images and the 32 KiB / 256 KiB halves that MAME-style dumps come
+in. It will also catch a GitHub page saved as `MT32_CONTROL.ROM`, which is a
+mistake that looks completely convincing in a file listing.
+
+## Rendering MIDI offline
+
+```sh
+./build/mt32-render -c CONTROL.ROM -p PCM.ROM -m song.mid -o out.wav
+```
+
+No audio device needed, runs faster than real time, and the output is
+deterministic — so synth changes are diffable.
+
+> **MIDI channel gotcha.** The MT-32 puts parts 1-8 on MIDI channels **2-9**
+> and rhythm on **10**. Channel 1 is unassigned, so notes sent there are
+> correctly ignored and produce silence. This is the first thing to check if
+> you hear nothing.
+
+## Reverb
+
+The MT-32's reverb is a **separate chip that has never been decapped**, so
+there is nothing for a silicon-accurate implementation to be accurate to.
+Upstream has no reverb at all.
+
+This fork uses [Munt](https://github.com/munt/munt)'s behavioural Boss reverb
+model as a stand-in. It is **on by default**, because a dry MT-32 does not
+sound like an MT-32 — but it is an approximation, not emulation, and you can
+switch it off:
+
+```sh
+./build/nuked-mt32  -c CONTROL.ROM -p PCM.ROM --reverb=off    # raw digital output
+./build/mt32-render -c CONTROL.ROM -p PCM.ROM -m song.mid --reverb=off
+```
+
+Mode, time and level follow the song: the MIDI stream is watched for writes to
+the MT-32 system area, so a file that asks for a hall gets a hall. Pin them
+with `--reverb-mode`, `--reverb-time` and `--reverb-level` to override.
+
+See [`munt/README.md`](munt/README.md) for the vendoring and licensing.
+
+## Tests
+
+```sh
+./build/mt32-selftest CONTROL.ROM PCM.ROM
+
 python3 tests/make_midis.py tests/midi
 python3 tests/run_battery.py CONTROL.ROM PCM.ROM tests/midi ./build/mt32-render
 ```
 
-The 16 cases cover all 128 timbres, the full rhythm map, 40-voice polyphony
-past the 32-partial limit, all eight parts at once, heavy and long SysEx, a
-reset mid-note, controllers, note and velocity extremes, 400 very short notes,
-rapid program changes, and two period-correct behaviours: MIDI channel 1 is
-unassigned so it must stay silent, and CC120 All Sound Off postdates the MT-32
-so it must be ignored. Every file is rendered twice and the audio hashed, so
-non-determinism fails the run.
+The self test boots the machine and asserts the splash, the idle display, a
+display-SysEx round trip (which exercises the CPU, the emulated UART, SysEx
+parsing and the firmware's own checksum validation), that unassigned channel 1
+stays silent, and that channels 2 and 10 produce audio.
 
-Requires numpy.
+The battery renders 16 MIDI files covering all 128 timbres, the full rhythm
+map, 40-voice polyphony past the 32-partial limit, all eight parts at once,
+heavy and long SysEx, a reset mid-note, controllers, note and velocity
+extremes, 400 very short notes and rapid program changes — then checks for
+crashes, hangs, stuck notes, unexpected silence, clipping and
+non-determinism. Every file is rendered twice and the audio hashed.
 
-## Self test
+Two cases assert *period-correct* behaviour: channel 1 must stay silent, and
+CC120 All Sound Off must be **ignored** — it entered the MIDI spec with
+General MIDI around 1990, three years after this machine shipped, and is
+absent from Roland's implementation chart.
 
-```sh
-./build/mt32-selftest CONTROL.ROM PCM.ROM
-```
+## Bugs fixed in the original
 
-Boots the machine and asserts the splash, the idle display, a display-SysEx
-round trip (which exercises CPU, UART, SysEx parsing and checksum validation),
-that unassigned channel 1 stays silent, and that channels 2 and 10 produce
-audio. Exits non-zero on failure, so it works as a regression gate while the
-synth engine is being worked on.
+- **`mame/emu.h` included `"..\mt32.h"` with a backslash.** No non-Windows
+  compiler accepts it. This one line was the entire barrier — fix it and the
+  whole emulation core compiles clean under clang and gcc untouched.
+- **Undefined behaviour on teardown.** `mcs96_device` has virtual functions but
+  no virtual destructor, while `mt32_t` holds the CPU as an `i8x9x_device*`,
+  constructs a `p8098_device` and calls `delete`. The derived destructor never
+  ran.
+- **`glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_2D, GL_CLAMP)`** — the second
+  argument is the parameter-name slot, so that should be `GL_TEXTURE_WRAP_T`.
+- **Constructor initialiser order** didn't match declaration order.
+- **Any ROM problem did `return 0` from `main()`** and exited silently, with no
+  message and a success exit code.
+- Plus smaller ones. The build is clean under `-Wall -Wextra`.
 
-To wire it into CTest, point the build at your ROMs:
+## Known limitations
 
-```sh
-cmake -B build -DMT32_TEST_CONTROL_ROM=/path/CONTROL.ROM \
-                -DMT32_TEST_PCM_ROM=/path/PCM.ROM
-ctest --test-dir build
-```
+Stated plainly, because they matter:
 
-## ROM requirements
+- **Reverb is an approximation**, not emulation (see above).
+- **The synth engine has known bugs** that upstream could not track down and
+  that this fork has *not* fixed. [`FINDINGS.md`](FINDINGS.md) documents a
+  differential test against Munt: pitch is exact, every spectral peak matches
+  to the FFT bin, and log-spectrum correlation is 0.93 — but there is a
+  patch-dependent DC offset, a level difference and a darker spectrum. The
+  dead ends and the fixes that *didn't* work are written down too, so the next
+  person doesn't repeat them.
+- **Nothing here has been compared against real hardware.**
+- Only the "new" MT-32 (v2.x) is emulated.
 
-This core emulates the **"new" MT-32 (v2.x)** - a P8098 CPU with 128 KiB of
-control ROM in 8 x 16 KiB banks. It needs:
+## Credits
 
-| Image       | Size            | Notes                                  |
-|-------------|-----------------|----------------------------------------|
-| Control ROM | 131072 (128 KiB) | MT-32 v2.03 / v2.04 / v2.06 / v2.07    |
-| PCM ROM     | 524288 (512 KiB) | Shared between old and new MT-32       |
-
-A 64 KiB **v1.xx control ROM will not work** - that is the "old" MT-32, a
-different machine. The loader detects this and says so explicitly. For old
-MT-32 emulation, use [Munt](https://github.com/munt/munt).
-
-**ROM images are copyrighted Roland firmware and are not distributed with this
-program.** Supply your own, dumped from hardware you own. `.gitignore` is set
-up to keep ROM images out of the repository; please keep it that way.
-
-## Building
-
-Requires CMake 3.16+, a C++17 compiler, SDL2, and OpenGL.
-
-```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-```
-
-macOS: `brew install cmake sdl2`
-Debian/Ubuntu: `apt install cmake libsdl2-dev libasound2-dev`
-
-## Running
-
-```sh
-./build/nuked-mt32 -c MT32_CONTROL.ROM -p MT32_PCM.ROM
-```
-
-Click the front panel buttons, or press `1`-`0`. Drag the volume knob, or use
-`-`/`=`. `Esc` quits.
-
-MIDI input is automatic. On macOS the emulator publishes a virtual CoreMIDI
-destination named **Nuked-MT32** - select it as the output in any DAW or MIDI
-player - and also connects to every physical MIDI source it finds.
-
-## Identifying ROM images
-
-`mt32-romid` fingerprints ROM files by SHA-1 and says which are usable:
-
-```sh
-./build/mt32-romid *.bin *.ROM
-```
-
-It recognizes full images and the 32 KiB / 256 KiB halves that MAME-style
-dumps come in, so a pile of `ic26`/`ic27` files can be sorted out quickly.
-
-## Offline rendering
-
-`mt32-render` runs the machine headless with no audio device, plays a Standard
-MIDI File through it and writes a WAV. Output is deterministic, so synth-engine
-regressions are diffable - useful while chasing the LA32 bugs.
-
-```sh
-./build/mt32-render -c MT32_CONTROL.ROM -p MT32_PCM.ROM -m song.mid -o out.wav
-```
-
-## Changes from upstream
-
-- CMake build replacing the Visual Studio-only solution; builds on macOS,
-  Linux and Windows from one tree.
-- Fixed `mame/emu.h` including `"..\mt32.h"` with a backslash, which no
-  non-Windows compiler accepts.
-- Portable `main.cpp`: no `Windows.h`, no `gl\GL.h`, no `__fallthrough`.
-- Fixed `glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_2D, GL_CLAMP)` - the second
-  argument should be `GL_TEXTURE_WRAP_T`. Also moved to `GL_CLAMP_TO_EDGE`.
-- CoreMIDI backend for macOS with a virtual destination; winmm retained for
-  Windows; ALSA selected on Linux.
-- ROM loading moved out of `main()` into `rom.cpp`, with size validation,
-  SHA-1 identification against known images, and real error messages. Upstream
-  did `return 0` from `main()` on any ROM problem, which exited silently.
-- ROM paths are now command-line arguments with `--help`, rather than fixed
-  filenames in the working directory.
-- Added `mt32-render`, a headless renderer with a Standard MIDI File parser.
-- HiDPI-correct rendering, vsync, and clean shutdown of audio/MIDI/GL.
-- A hardware-style front panel with clickable buttons and a draggable volume
-  knob, drawn with the LCD controller's own font so it needs no font
-  dependency. Upstream showed only the bare LCD.
+- **[nukeykt](https://github.com/nukeykt)** — the emulator.
+- **[John McMaster](https://siliconprawn.org)** — the LA32 die decap everything
+  rests on.
+- **Olivier Galibert / MAME** — the MCS-96 CPU core.
+- **[Munt](https://github.com/munt/munt)** (Dean Beeler, Jerome Fisher,
+  Sergey V. Mikayev) — the reverb model, and the reference used to characterise
+  the synth-engine differences.
 
 ## License
 
 GPL-2.0, as upstream. The MAME-derived MCS-96 core under `mame/` carries its
-own license - see `mame/COPYING`.
+own license. The vendored reverb model under `munt/` is LGPL-2.1-or-later,
+which is compatible — see [`munt/README.md`](munt/README.md).
