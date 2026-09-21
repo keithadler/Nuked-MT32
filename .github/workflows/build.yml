@@ -81,14 +81,7 @@ jobs:
           grep -q "expected" sel.txt
 
           echo "--- SysEx validation must reject a malformed MIDI file ---"
-          python3 - <<'EOF'
-import struct
-# F0 with no SMF length prefix: the classic malformed-SysEx case
-trk = b'\x00\xf0\x41\x10\x16\x12\x20\x00\x00\x01\xf7' + b'\x00\xff\x2f\x00'
-open('bad.mid','wb').write(
-    b'MThd' + struct.pack('>IHHH',6,0,1,480) +
-    b'MTrk' + struct.pack('>I',len(trk)) + trk)
-EOF
+          python3 -c "import struct; trk=b'\\x00\\xf0\\x41\\x10\\x16\\x12\\x20\\x00\\x00\\x01\\xf7'+b'\\x00\\xff\\x2f\\x00'; open('bad.mid','wb').write(b'MThd'+struct.pack('>IHHH',6,0,1,480)+b'MTrk'+struct.pack('>I',len(trk))+trk)"
           "$BIN/mt32-render$EXE" -c bad.rom -p bad.rom -m bad.mid -o /dev/null > r.txt 2>&1 || true
           cat r.txt
 
