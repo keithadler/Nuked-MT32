@@ -14,8 +14,10 @@ SR = 32000
 
 
 def render(renderer, ctrl, pcm, mid, out, seconds, extra=()):
+    # --reverb=off deliberately: the battery checks the chip-accurate core,
+    # not the behavioural reverb model standing in for undecapped hardware.
     cmd = [renderer, "-c", ctrl, "-p", pcm, "-m", mid, "-o", out,
-           "-t", str(seconds), *extra]
+           "-t", str(seconds), "--reverb=off", *extra]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=300)
     except subprocess.TimeoutExpired:

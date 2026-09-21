@@ -24,6 +24,7 @@
 #include "rom.h"
 #include "panel.h"
 #include "dcblock.h"
+#include "reverb.h"
 
 static SDL_Window *window;
 static SDL_GLContext gl_context;
@@ -32,6 +33,8 @@ static uint32_t panel_buffer[panel_h * panel_w];
 mt32_t mt32;
 static DcBlocker dc_blocker;
 static bool dc_block_enabled = false;
+Mt32Reverb reverb;
+bool reverb_enabled = true;
 
 static constexpr int SAMPLE_RATE = 32000;
 
@@ -39,6 +42,8 @@ static void mt32_callback(void *, Uint8 *stream, int len)
 {
     const int frames = len / 4; // stereo, 16-bit
     mt32.clock(frames);
+    if (reverb_enabled)
+        reverb.process(&mt32.samples[0][0], frames);
     if (dc_block_enabled)
         dc_blocker.process(&mt32.samples[0][0], frames);
     memcpy(stream, mt32.samples, size_t(len));
@@ -55,6 +60,9 @@ static void usage(const char *argv0)
         "  -c, --control PATH   Control ROM image (128 KiB)\n"
         "  -p, --pcm PATH       PCM ROM image (512 KiB)\n"
         "  -s, --scale N        Initial window scale factor (default 1)\n"
+        "      --reverb MODE    munt (default) or off. The MT-32's reverb chip\n"
+        "                       has never been decapped, so this is Munt's\n"
+        "                       behavioural model, not chip-accurate emulation.\n"
         "      --dc-block       Remove the DC offset, as the real unit's AC\n"
         "                       coupled output does (mitigation, not a fix)\n"
         "  -h, --help           Show this help\n"
@@ -84,8 +92,21 @@ int main(int argc, char **argv)
     int scale = 1;
 
     for (int i = 1; i < argc; i++) {
-        const char *a = argv[i];
+        // Accept both "--opt value" and "--opt=value".
+        std::string arg(argv[i]);
+        std::string inline_val;
+        bool has_inline = false;
+        if (arg.size() > 2 && arg.compare(0, 2, "--") == 0) {
+            size_t eq = arg.find('=');
+            if (eq != std::string::npos) {
+                inline_val = arg.substr(eq + 1);
+                arg = arg.substr(0, eq);
+                has_inline = true;
+            }
+        }
+        const char *a = arg.c_str();
         auto next = [&](const char *what) -> const char * {
+            if (has_inline) return inline_val.c_str();
             if (i + 1 >= argc) {
                 fprintf(stderr, "error: %s requires a value\n", what);
                 exit(1);
@@ -98,6 +119,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "-p") || !strcmp(a, "--pcm"))     pcm_path = next(a);
         else if (!strcmp(a, "-s") || !strcmp(a, "--scale"))   scale = atoi(next(a));
         else if (!strcmp(a, "--dc-block")) dc_block_enabled = true;
+        else if (!strcmp(a, "--reverb")) {
+            const char *v = next(a);
+            if      (!strcmp(v, "off"))  reverb_enabled = false;
+            else if (!strcmp(v, "munt")) reverb_enabled = true;
+            else { fprintf(stderr, "error: --reverb takes munt or off\n"); return 1; }
+        }
         else if (a[0] == '-') {
             fprintf(stderr, "error: unknown option \"%s\"\n", a);
             return 1;
@@ -146,6 +173,13 @@ int main(int argc, char **argv)
         printf("Nuked-MT32\n");
         printf("  control: %s%s%s\n", control_path.c_str(), *cn ? " - " : "", cn);
         printf("  pcm:     %s%s%s\n", pcm_path.c_str(), *pn ? " - " : "", pn);
+    }
+
+    if (reverb_enabled) {
+        reverb.init();
+        printf("  reverb:  munt model (behavioural, not chip-accurate)\n");
+    } else {
+        printf("  reverb:  off\n");
     }
 
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_VIDEO) != 0) {

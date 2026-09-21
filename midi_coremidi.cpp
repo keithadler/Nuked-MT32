@@ -19,7 +19,7 @@
  *  utility can target the emulator directly, and additionally connects to
  *  every physical MIDI source present so a hardware keyboard just works.
  *
- *  Raw bytes are handed straight to mt32.post_midi(), which feeds the
+ *  Raw bytes are handed straight to mt32_post_midi_observed(), which feeds the
  *  emulated UART - so running status and SysEx pass through untouched.
  */
 #include <CoreMIDI/CoreMIDI.h>
@@ -27,8 +27,18 @@
 #include <stdio.h>
 #include "mt32.h"
 #include "midi.h"
+#include "reverb.h"
+
 
 extern mt32_t mt32;
+extern Mt32Reverb reverb;
+extern bool reverb_enabled;
+
+static inline void mt32_post_midi_observed(uint8_t b)
+{
+    mt32.post_midi(b);
+    if (reverb_enabled) reverb.observeMidiByte(b);
+}
 
 static MIDIClientRef  midi_client;
 static MIDIEndpointRef midi_virtual_dest;
@@ -39,7 +49,7 @@ static void feed_packets(const MIDIPacketList *pktlist)
     const MIDIPacket *packet = &pktlist->packet[0];
     for (UInt32 i = 0; i < pktlist->numPackets; i++) {
         for (UInt16 j = 0; j < packet->length; j++)
-            mt32.post_midi(packet->data[j]);
+            mt32_post_midi_observed(packet->data[j]);
         packet = MIDIPacketNext(packet);
     }
 }

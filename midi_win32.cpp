@@ -20,8 +20,18 @@
 #include <mmsystem.h>
 #include "mt32.h"
 #include "midi.h"
+#include "reverb.h"
+
 
 extern mt32_t mt32;
+extern Mt32Reverb reverb;
+extern bool reverb_enabled;
+
+static inline void mt32_post_midi_observed(uint8_t b)
+{
+    mt32.post_midi(b);
+    if (reverb_enabled) reverb.observeMidiByte(b);
+}
 
 static HMIDIIN midi_handle;
 static MIDIHDR midi_buffer;
@@ -50,14 +60,14 @@ void CALLBACK MIDI_Callback(
                 case 0xa0:
                 case 0xb0:
                 case 0xe0:
-                    mt32.post_midi(b1);
-                    mt32.post_midi((dwParam1 >> 8) & 0xff);
-                    mt32.post_midi((dwParam1 >> 16) & 0xff);
+                    mt32_post_midi_observed(b1);
+                    mt32_post_midi_observed((dwParam1 >> 8) & 0xff);
+                    mt32_post_midi_observed((dwParam1 >> 16) & 0xff);
                     break;
                 case 0xc0:
                 case 0xd0:
-                    mt32.post_midi(b1);
-                    mt32.post_midi((dwParam1 >> 8) & 0xff);
+                    mt32_post_midi_observed(b1);
+                    mt32_post_midi_observed((dwParam1 >> 8) & 0xff);
                     break;
             }
             break;
@@ -71,7 +81,7 @@ void CALLBACK MIDI_Callback(
             {
                 for (int i = 0; i < midi_buffer.dwBytesRecorded; i++)
                 {
-                    mt32.post_midi(midi_in_buffer[i]);
+                    mt32_post_midi_observed(midi_in_buffer[i]);
                 }
             }
 

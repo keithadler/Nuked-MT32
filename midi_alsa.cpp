@@ -25,8 +25,18 @@
 #include <stdio.h>
 #include "mt32.h"
 #include "midi.h"
+#include "reverb.h"
+
 
 extern mt32_t mt32;
+extern Mt32Reverb reverb;
+extern bool reverb_enabled;
+
+static inline void mt32_post_midi_observed(uint8_t b)
+{
+    mt32.post_midi(b);
+    if (reverb_enabled) reverb.observeMidiByte(b);
+}
 
 static snd_seq_t       *seq_handle;
 static snd_midi_event_t *midi_parser;
@@ -50,7 +60,7 @@ static void *midi_loop(void *)
         long n = snd_midi_event_decode(midi_parser, buf, sizeof buf, ev);
         if (n > 0) {
             for (long i = 0; i < n; i++)
-                mt32.post_midi(buf[i]);
+                mt32_post_midi_observed(buf[i]);
         }
     }
     return nullptr;

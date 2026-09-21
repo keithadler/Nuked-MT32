@@ -27,6 +27,7 @@
 #include "mt32.h"
 #include "rom.h"
 #include "dcblock.h"
+#include "reverb.h"
 
 mt32_t mt32;
 
@@ -200,6 +201,13 @@ static void usage(const char *a0)
         "  -w, --warmup N       Seconds to run before the MIDI starts, so the\n"
         "                       machine is booted. Default: wait until the front\n"
         "                       panel reaches its idle display. 0 disables.\n"
+        "      --reverb MODE    munt (default) or off. The MT-32's reverb chip\n"
+        "                       has never been decapped, so this is Munt's\n"
+        "                       behavioural model, not chip-accurate emulation.\n"
+        "                       off gives the raw digital output.\n"
+        "      --reverb-mode N  0 room, 1 hall, 2 plate, 3 tap delay. Pins the\n"
+        "      --reverb-time N  setting so SysEx in the file cannot change it.\n"
+        "      --reverb-level N Each of time and level is 0-7.\n"
         "      --dc-block       Remove the DC offset, as the real unit's AC\n"
         "                       coupled output does. A mitigation, not a fix -\n"
         "                       see FINDINGS.md.\n"
@@ -215,10 +223,25 @@ int main(int argc, char **argv)
     double seconds = -1.0;
     double warmup = -1.0;     // <0 means "detect"
     bool dc_block = false;
+    bool reverb_on = true;            // Munt model, on by default
+    int rv_mode = -1, rv_time = -1, rv_level = -1;
 
     for (int i = 1; i < argc; i++) {
-        const char *a = argv[i];
+        // Accept both "--opt value" and "--opt=value".
+        std::string arg(argv[i]);
+        std::string inline_val;
+        bool has_inline = false;
+        if (arg.size() > 2 && arg.compare(0, 2, "--") == 0) {
+            size_t eq = arg.find('=');
+            if (eq != std::string::npos) {
+                inline_val = arg.substr(eq + 1);
+                arg = arg.substr(0, eq);
+                has_inline = true;
+            }
+        }
+        const char *a = arg.c_str();
         auto next = [&](const char *what) -> const char * {
+            if (has_inline) return inline_val.c_str();
             if (i + 1 >= argc) { fprintf(stderr, "error: %s requires a value\n", what); exit(1); }
             return argv[++i];
         };
@@ -230,6 +253,15 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "-t") || !strcmp(a, "--seconds")) seconds = atof(next(a));
         else if (!strcmp(a, "--dc-block")) dc_block = true;
         else if (!strcmp(a, "-w") || !strcmp(a, "--warmup")) warmup = atof(next(a));
+        else if (!strcmp(a, "--reverb")) {
+            const char *v = next(a);
+            if      (!strcmp(v, "off"))  reverb_on = false;
+            else if (!strcmp(v, "munt")) reverb_on = true;
+            else { fprintf(stderr, "error: --reverb takes munt or off\n"); return 1; }
+        }
+        else if (!strcmp(a, "--reverb-mode"))  rv_mode  = atoi(next(a));
+        else if (!strcmp(a, "--reverb-time"))  rv_time  = atoi(next(a));
+        else if (!strcmp(a, "--reverb-level")) rv_level = atoi(next(a));
         else { fprintf(stderr, "error: unknown argument \"%s\"\n", a); return 1; }
     }
 
@@ -306,6 +338,21 @@ int main(int argc, char **argv)
     wav_header(out, total);
 
     DcBlocker dc;
+    Mt32Reverb reverb;
+    if (reverb_on) {
+        reverb.init();
+        if (rv_mode >= 0) reverb.setMode(rv_mode);
+        if (rv_time >= 0 || rv_level >= 0)
+            reverb.setParameters(rv_time  >= 0 ? rv_time  : reverb.time(),
+                                 rv_level >= 0 ? rv_level : reverb.level());
+        if (rv_mode >= 0 || rv_time >= 0 || rv_level >= 0)
+            reverb.lockSettings(true);
+        printf("  reverb:  munt model, mode %d time %d level %d%s\n",
+               reverb.mode(), reverb.time(), reverb.level(),
+               (rv_mode >= 0 || rv_time >= 0 || rv_level >= 0) ? " (pinned)" : "");
+    } else {
+        printf("  reverb:  off\n");
+    }
     const uint32_t CHUNK = 1024;
     size_t next_ev = 0;
     uint32_t done = 0;
@@ -316,12 +363,16 @@ int main(int argc, char **argv)
         double t_end = double(done + n) / SAMPLE_RATE;
 
         while (next_ev < events.size() && events[next_ev].time <= t_end) {
-            for (uint8_t b : events[next_ev].bytes)
+            for (uint8_t b : events[next_ev].bytes) {
                 mt32.post_midi(b);
+                if (reverb_on) reverb.observeMidiByte(b);
+            }
             next_ev++;
         }
 
         mt32.clock(n);
+        if (reverb_on)
+            reverb.process(&mt32.samples[0][0], int(n));
         if (dc_block)
             dc.process(&mt32.samples[0][0], int(n));
         fwrite(mt32.samples, 4, n, out);

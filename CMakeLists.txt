@@ -16,10 +16,13 @@ add_library(mt32core STATIC
     la32.cpp
     lcd.cpp
     rom.cpp
+    reverb.cpp
+    munt/BReverbModel.cpp
     mame/mcs96.cpp
     mame/i8x9x.cpp
 )
-target_include_directories(mt32core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(mt32core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+                                          ${CMAKE_CURRENT_SOURCE_DIR}/munt)
 
 if(MSVC)
     target_compile_options(mt32core PRIVATE /W3)
