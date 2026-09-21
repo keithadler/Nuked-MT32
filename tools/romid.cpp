@@ -54,7 +54,8 @@ int main(int argc, char **argv)
         const char *id = rom_identify(h);
 
         const char *verdict;
-        if (rd == ROM_CONTROL_SIZE)  { verdict = "USABLE as control ROM"; usable_control++; }
+        if (rd == ROM_CONTROL_SIZE)      { verdict = "USABLE as control ROM (MT-32 v2.xx)"; usable_control++; }
+        else if (rd == ROM_CONTROL_SIZE_OLD) { verdict = "USABLE as control ROM (MT-32 v1.xx)"; usable_control++; }
         else if (rd == ROM_PCM_SIZE) { verdict = "USABLE as PCM ROM";     usable_pcm++; }
         else                          verdict = "not usable by this core";
 
@@ -65,7 +66,7 @@ int main(int argc, char **argv)
     printf("\n%d usable control ROM(s), %d usable PCM ROM(s).\n",
            usable_control, usable_pcm);
     if (!usable_control)
-        printf("This core needs a 128 KiB MT-32 v2.0x control ROM "
-               "(v2.03/2.04/2.06/2.07).\n");
+        printf("A control ROM must be 128 KiB (MT-32 v2.xx) or 64 KiB "
+               "(MT-32 v1.xx).\n");
     return 0;
 }

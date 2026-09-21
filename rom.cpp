@@ -134,6 +134,44 @@ const char *rom_identify(const std::string &sha1)
     return "";
 }
 
+bool rom_load_control(const char *path, uint8_t *dst, bool &old_machine,
+                      std::string &error)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        error = std::string("cannot open control ROM \"") + path + "\"";
+        return false;
+    }
+    fseek(f, 0, SEEK_END);
+    long actual = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (actual != long(ROM_CONTROL_SIZE) && actual != long(ROM_CONTROL_SIZE_OLD)) {
+        fclose(f);
+        char buf[256];
+        snprintf(buf, sizeof buf,
+                 "control ROM \"%s\" is %ld bytes; expected %zu (MT-32 v2.xx) "
+                 "or %zu (MT-32 v1.xx)", path, actual,
+                 ROM_CONTROL_SIZE, ROM_CONTROL_SIZE_OLD);
+        error = buf;
+        if (actual == 0x8000)
+            error += "\n  This is a 32 KiB control ROM half. Two multiplexed"
+                     "\n  halves make one 64 KiB v1.xx image.";
+        return false;
+    }
+
+    memset(dst, 0, ROM_CONTROL_SIZE);
+    size_t got = fread(dst, 1, size_t(actual), f);
+    fclose(f);
+    if (got != size_t(actual)) {
+        error = std::string("short read on control ROM \"") + path + "\"";
+        return false;
+    }
+
+    old_machine = (actual == long(ROM_CONTROL_SIZE_OLD));
+    return true;
+}
+
 bool rom_load(const char *path, uint8_t *dst, size_t expect_size,
               const char *kind, std::string &error)
 {

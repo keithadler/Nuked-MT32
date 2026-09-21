@@ -50,6 +50,7 @@ class mt32_t
     friend class la32_t;
 
 private:
+    uint16_t la32_addr(uint16_t address) const;
     uint8_t cpu_read(uint16_t address);
     void cpu_write(uint16_t address, uint8_t data);
 
@@ -100,6 +101,12 @@ public:
 
     uint32_t button;
     int32_t knob;
+
+    // false: "new" MT-32 (v2.xx), 128 KiB control ROM in 8 banks.
+    // true:  "old" MT-32 (v1.xx), 64 KiB control ROM in 4 banks, and the LA32
+    //        register select sits one bit further up the address bus.
+    // Set this before the first clock().
+    bool old_machine = false;
 
     uint8_t rom[0x20000];
     uint8_t pcm[0x80000];

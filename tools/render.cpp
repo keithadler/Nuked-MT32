@@ -271,7 +271,7 @@ int main(int argc, char **argv)
     }
 
     std::string err;
-    if (!rom_load(control_path.c_str(), mt32.rom, ROM_CONTROL_SIZE, "control", err)) {
+    if (!rom_load_control(control_path.c_str(), mt32.rom, mt32.old_machine, err)) {
         fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
     }
@@ -294,6 +294,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "error: %s: %s\n", midi_path.c_str(), err.c_str());
             return 1;
         }
+        printf("  machine: MT-32 %s\n", mt32.old_machine ? "v1.xx (old)" : "v2.xx (new)");
         printf("  midi:    %s (%zu events)\n", midi_path.c_str(), events.size());
         if (sysex_warnings)
             fprintf(stderr,

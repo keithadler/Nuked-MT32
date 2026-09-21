@@ -81,7 +81,7 @@ int main(int argc, char **argv)
     }
 
     std::string err;
-    if (!rom_load(argv[1], mt32.rom, ROM_CONTROL_SIZE, "control", err)) {
+    if (!rom_load_control(argv[1], mt32.rom, mt32.old_machine, err)) {
         printf("error: %s\n", err.c_str());
         return 2;
     }
@@ -91,6 +91,7 @@ int main(int argc, char **argv)
     }
 
     printf("Nuked-MT32 self test\n");
+    printf("  machine: MT-32 %s\n", mt32.old_machine ? "v1.xx (old)" : "v2.xx (new)");
 
     // 1. Boot splash.
     run(0.05);

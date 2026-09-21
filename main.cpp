@@ -158,7 +158,7 @@ int main(int argc, char **argv)
     }
 
     std::string err;
-    if (!rom_load(control_path.c_str(), mt32.rom, ROM_CONTROL_SIZE, "control", err)) {
+    if (!rom_load_control(control_path.c_str(), mt32.rom, mt32.old_machine, err)) {
         fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
     }
@@ -168,9 +168,11 @@ int main(int argc, char **argv)
     }
 
     {
-        const char *cn = rom_identify(rom_sha1(mt32.rom, ROM_CONTROL_SIZE));
+        const char *cn = rom_identify(rom_sha1(
+            mt32.rom, mt32.old_machine ? ROM_CONTROL_SIZE_OLD : ROM_CONTROL_SIZE));
         const char *pn = rom_identify(rom_sha1(mt32.pcm, ROM_PCM_SIZE));
         printf("Nuked-MT32\n");
+        printf("  machine: MT-32 %s\n", mt32.old_machine ? "v1.xx (old)" : "v2.xx (new)");
         printf("  control: %s%s%s\n", control_path.c_str(), *cn ? " - " : "", cn);
         printf("  pcm:     %s%s%s\n", pcm_path.c_str(), *pn ? " - " : "", pn);
     }

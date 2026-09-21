@@ -52,6 +52,16 @@ mt32_t::~mt32_t()
     delete mcu;
 }
 
+// The old (v1.xx) machine selects LA32 registers one bit further up the
+// address bus, so its register stride is two bytes rather than one. The data
+// the firmware writes is byte-for-byte identical between the two versions;
+// only the addresses differ.
+uint16_t mt32_t::la32_addr(uint16_t address) const
+{
+    return old_machine ? uint16_t((address & 0x3ff) >> 1)
+                       : uint16_t(address & 0x1ff);
+}
+
 uint8_t mt32_t::cpu_read(uint16_t address)
 {
     uint32_t addr_hi = (address >> 7) & 0x7fff;
@@ -72,7 +82,7 @@ uint8_t mt32_t::cpu_read(uint16_t address)
     }
     else if (addr_hi >= 0x18 && addr_hi < 0x20)
     {
-        return la32->read(address & 0x1ff);
+        return la32->read(la32_addr(address));
     }
     else if (addr_hi == 7)
     {
@@ -133,7 +143,7 @@ void mt32_t::cpu_write(uint16_t address, uint8_t data)
     else if (addr_hi >= 0x18 && addr_hi < 0x20)
     {
         //printf("la32 write: %x %x\n", address & 0x1ff, data);
-        la32->write(address & 0x1ff, data);
+        la32->write(la32_addr(address), data);
     }
     else
     {
@@ -144,7 +154,7 @@ void mt32_t::cpu_write(uint16_t address, uint8_t data)
                 if (reg_bank & 0x10)
                     bank_ptr = &ram[(reg_bank & 1) << 14];
                 else
-                    bank_ptr = &rom[(reg_bank & 7) << 14];
+                    bank_ptr = &rom[(reg_bank & (old_machine ? 3 : 7)) << 14];
                 break;
             case 4:
             case 5:

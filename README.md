@@ -33,6 +33,7 @@ actual die.
 | **Headless rendering** | `mt32-render` turns a MIDI file into a WAV with no audio device. Deterministic. |
 | **ROM identification** | `mt32-romid` fingerprints ROM images by SHA-1 and tells you what you have. |
 | **Tests** | A self test and a 16-file MIDI stress battery. |
+| **Old MT-32 support** | v1.04 through v1.07 and BlueRidge, alongside v2.x. Upstream was v2.x only. |
 | **Bug fixes** | Including undefined behaviour on teardown. See [below](#bugs-fixed-in-the-original). |
 
 ## The display is not a mockup
@@ -70,17 +71,22 @@ sequencer port of the same name; Windows uses winmm.
 Supply your own, dumped from hardware you own. `.gitignore` is set up to keep
 them out of the repository.
 
-This core emulates the **"new" MT-32 (v2.x)** — a P8098 CPU with 128 KiB of
-control ROM in eight banks:
+**Both the old and new MT-32 are supported**, detected automatically from the
+control ROM's size:
 
 | Image | Size | Notes |
 |---|---|---|
-| Control | 131072 (128 KiB) | MT-32 v2.03 / v2.04 / v2.06 / v2.07 |
-| PCM | 524288 (512 KiB) | Shared between old and new MT-32 |
+| Control (v1.xx) | 65536 (64 KiB) | "old" MT-32 — v1.04 / v1.05 / v1.06 / v1.07 / BlueRidge |
+| Control (v2.xx) | 131072 (128 KiB) | "new" MT-32 — v2.03 / v2.04 / v2.06 / v2.07 |
+| PCM | 524288 (512 KiB) | Shared by both |
 
-A 64 KiB **v1.xx control ROM will not work** — that is the "old" MT-32, a
-different machine. The loader detects this and says so. For v1.xx, use
-[Munt](https://github.com/munt/munt).
+If you are here for the games, you want **v1.07**. The Sierra and LucasArts
+catalogue was voiced on the old MT-32, and v2.x changed the voicing — the two
+measure only 0.82 log-spectrum correlation on identical material, so the
+difference is audible, not academic.
+
+All six firmware revisions above boot, display and play. The 16-file test
+battery passes on both machines.
 
 Not sure what you have?
 
@@ -183,7 +189,6 @@ Stated plainly, because they matter:
   dead ends and the fixes that *didn't* work are written down too, so the next
   person doesn't repeat them.
 - **Nothing here has been compared against real hardware.**
-- Only the "new" MT-32 (v2.x) is emulated.
 
 ## Credits
 
