@@ -62,6 +62,15 @@ The MT-32 assigns parts 1-8 to MIDI channels **2-9**, and rhythm to channel 10.
 Channel 1 is unassigned by default, so notes sent there are correctly ignored
 and produce silence. This is the first thing to check if you hear nothing.
 
+## DC offset
+
+The digital signal this core produces carries a patch-dependent DC offset
+(measured at -478 on patch 0 and +2007 on patch 81, the latter about 6% of
+full scale). On real hardware the output is AC coupled, so none of it reaches
+the jacks. Pass `--dc-block` to `nuked-mt32` or `mt32-render` to high-pass it
+out. That is a mitigation of the symptom, not a fix for the cause - see
+`FINDINGS.md`. It is off by default.
+
 ## Self test
 
 ```sh

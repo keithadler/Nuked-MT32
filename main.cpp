@@ -23,12 +23,15 @@
 #include "midi.h"
 #include "rom.h"
 #include "panel.h"
+#include "dcblock.h"
 
 static SDL_Window *window;
 static SDL_GLContext gl_context;
 static uint32_t panel_buffer[panel_h * panel_w];
 
 mt32_t mt32;
+static DcBlocker dc_blocker;
+static bool dc_block_enabled = false;
 
 static constexpr int SAMPLE_RATE = 32000;
 
@@ -36,6 +39,8 @@ static void mt32_callback(void *, Uint8 *stream, int len)
 {
     const int frames = len / 4; // stereo, 16-bit
     mt32.clock(frames);
+    if (dc_block_enabled)
+        dc_blocker.process(&mt32.samples[0][0], frames);
     memcpy(stream, mt32.samples, size_t(len));
 }
 
@@ -50,6 +55,8 @@ static void usage(const char *argv0)
         "  -c, --control PATH   Control ROM image (128 KiB)\n"
         "  -p, --pcm PATH       PCM ROM image (512 KiB)\n"
         "  -s, --scale N        Initial window scale factor (default 1)\n"
+        "      --dc-block       Remove the DC offset, as the real unit's AC\n"
+        "                       coupled output does (mitigation, not a fix)\n"
         "  -h, --help           Show this help\n"
         "\n"
         "If no ROM paths are given, the current directory is searched for\n"
@@ -90,6 +97,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "-c") || !strcmp(a, "--control")) control_path = next(a);
         else if (!strcmp(a, "-p") || !strcmp(a, "--pcm"))     pcm_path = next(a);
         else if (!strcmp(a, "-s") || !strcmp(a, "--scale"))   scale = atoi(next(a));
+        else if (!strcmp(a, "--dc-block")) dc_block_enabled = true;
         else if (a[0] == '-') {
             fprintf(stderr, "error: unknown option \"%s\"\n", a);
             return 1;

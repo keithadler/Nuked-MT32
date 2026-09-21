@@ -26,6 +26,7 @@
 #include <algorithm>
 #include "mt32.h"
 #include "rom.h"
+#include "dcblock.h"
 
 mt32_t mt32;
 
@@ -188,6 +189,9 @@ static void usage(const char *a0)
         "  -m, --midi PATH      Standard MIDI File to play (optional)\n"
         "  -t, --seconds N      Render length; default = MIDI length + 2s, or 5\n"
         "  -o, --out PATH       Output WAV (default out.wav)\n"
+        "      --dc-block       Remove the DC offset, as the real unit's AC\n"
+        "                       coupled output does. A mitigation, not a fix -\n"
+        "                       see FINDINGS.md.\n"
         "  -h, --help           Show this help\n"
         "\n"
         "ROM images are copyrighted Roland firmware and are NOT distributed\n"
@@ -198,6 +202,7 @@ int main(int argc, char **argv)
 {
     std::string control_path, pcm_path, midi_path, out_path = "out.wav";
     double seconds = -1.0;
+    bool dc_block = false;
 
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -211,6 +216,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "-m") || !strcmp(a, "--midi"))    midi_path = next(a);
         else if (!strcmp(a, "-o") || !strcmp(a, "--out"))     out_path = next(a);
         else if (!strcmp(a, "-t") || !strcmp(a, "--seconds")) seconds = atof(next(a));
+        else if (!strcmp(a, "--dc-block")) dc_block = true;
         else { fprintf(stderr, "error: unknown argument \"%s\"\n", a); return 1; }
     }
 
@@ -255,6 +261,7 @@ int main(int argc, char **argv)
     uint32_t total = uint32_t(seconds * SAMPLE_RATE);
     wav_header(out, total);
 
+    DcBlocker dc;
     const uint32_t CHUNK = 1024;
     size_t next_ev = 0;
     uint32_t done = 0;
@@ -271,6 +278,8 @@ int main(int argc, char **argv)
         }
 
         mt32.clock(n);
+        if (dc_block)
+            dc.process(&mt32.samples[0][0], int(n));
         fwrite(mt32.samples, 4, n, out);
 
         for (uint32_t i = 0; i < n; i++) {
