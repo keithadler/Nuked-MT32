@@ -61,6 +61,16 @@ endif()
 find_package(OpenGL REQUIRED)
 
 add_executable(nuked-mt32 main.cpp panel.cpp ${MIDI_BACKEND})
+
+# On Windows SDL2 renames main() to SDL_main(), and the real entry point comes
+# from SDL2main. It must be linked before SDL2 itself or the link fails with an
+# unresolved `main`.
+if(TARGET SDL2::SDL2main)
+    target_link_libraries(nuked-mt32 PRIVATE SDL2::SDL2main)
+elseif(WIN32 AND SDL2MAIN_LIBRARY)
+    target_link_libraries(nuked-mt32 PRIVATE ${SDL2MAIN_LIBRARY})
+endif()
+
 target_link_libraries(nuked-mt32 PRIVATE mt32core ${SDL2_TARGET} OpenGL::GL)
 
 if(APPLE)
@@ -89,4 +99,10 @@ if(DEFINED MT32_TEST_CONTROL_ROM AND DEFINED MT32_TEST_PCM_ROM)
              COMMAND mt32-selftest ${MT32_TEST_CONTROL_ROM} ${MT32_TEST_PCM_ROM})
 endif()
 
-install(TARGETS nuked-mt32 mt32-render mt32-romid RUNTIME DESTINATION bin)
+if(MSVC)
+    # Keep a console so the ROM diagnostics and --help are visible.
+    set_target_properties(nuked-mt32 PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+endif()
+
+install(TARGETS nuked-mt32 mt32-render mt32-romid mt32-selftest
+        RUNTIME DESTINATION bin)
