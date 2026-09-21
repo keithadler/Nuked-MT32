@@ -71,4 +71,22 @@ elseif(ALSA_FOUND)
     target_link_libraries(nuked-mt32 PRIVATE ALSA::ALSA)
 endif()
 
-install(TARGETS nuked-mt32 RUNTIME DESTINATION bin)
+# --- Headless offline renderer (test harness) -------------------------------
+add_executable(mt32-render tools/render.cpp)
+target_link_libraries(mt32-render PRIVATE mt32core)
+
+# --- ROM identification utility ---------------------------------------------
+add_executable(mt32-romid tools/romid.cpp)
+target_link_libraries(mt32-romid PRIVATE mt32core)
+
+# --- End-to-end self test ---------------------------------------------------
+add_executable(mt32-selftest tools/selftest.cpp)
+target_link_libraries(mt32-selftest PRIVATE mt32core)
+
+enable_testing()
+if(DEFINED MT32_TEST_CONTROL_ROM AND DEFINED MT32_TEST_PCM_ROM)
+    add_test(NAME selftest
+             COMMAND mt32-selftest ${MT32_TEST_CONTROL_ROM} ${MT32_TEST_PCM_ROM})
+endif()
+
+install(TARGETS nuked-mt32 mt32-render mt32-romid RUNTIME DESTINATION bin)
