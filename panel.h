@@ -16,16 +16,18 @@
  *  Front panel: draws a hardware-style face around the emulated LCD, with
  *  clickable buttons and a volume knob.
  *
- *  The layout follows the shape of the real unit - display left of centre,
- *  a row of function buttons beneath it, volume on the right - but uses
- *  plain functional labels and carries no manufacturer branding or logo.
+ *  The layout follows the shape of the real unit: a black face, the display
+ *  at the left, ten buttons in two rows of five beside it, volume at the far
+ *  right. The labels are the hardware's own function names, which is what the
+ *  buttons do; there is no manufacturer branding, no logo, and nothing traced
+ *  from the original artwork.
  */
 #pragma once
 #include <stdint.h>
 
 class mt32_t;
 
-static constexpr int panel_w = 1240;
+static constexpr int panel_w = 1660;
 static constexpr int panel_h = 340;
 
 // Renders the whole panel, including the LCD, into `out` (panel_w * panel_h,
