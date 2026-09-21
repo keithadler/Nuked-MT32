@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------
+# ROM images are copyrighted Roland firmware and MUST NOT be committed.
+# Supply your own, dumped from hardware you own.
+# ---------------------------------------------------------------------------
+*.ROM
+*.rom
+*.bin
+roms/
+
+# Build output
+build/
+cmake-build-*/
+*.o
+*.a
+*.wav
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+compile_commands.json
