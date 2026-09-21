@@ -14,6 +14,14 @@
 
 ---
 
+> **What is and isn't accurate:** this fork did **not** fix the synth-engine
+> bugs upstream flagged. [`FINDINGS.md`](FINDINGS.md) documents a differential
+> test against Munt — pitch is exact, every spectral peak matches to the FFT
+> bin, log-spectrum correlation 0.93 — along with the DC bias localized to the
+> `w1` path, and the fixes that were tried and failed, so the next person
+> doesn't repeat them. Reverb is a behavioural model, not emulation. Nothing
+> here has been compared against real hardware.
+
 The MT-32 was the sound of PC gaming from 1987 — Sierra, LucasArts, the whole
 catalogue. This emulates the machine itself: the firmware runs on an emulated
 MCS-96 CPU, and the LA32 synthesis chip is modelled from a photograph of the
@@ -46,6 +54,10 @@ firmware is responding to the front panel — not because anything was drawn on
 top of it.
 
 ## Quick start
+
+Prebuilt binaries for macOS, Linux and Windows are attached to each
+[release](https://github.com/keithadler/Nuked-MT32/releases). No ROMs included —
+bring your own. To build from source:
 
 ```sh
 brew install cmake sdl2                 # macOS
