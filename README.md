@@ -7,6 +7,21 @@ This tree continues it with a portable build and a test harness.
 Uses the MCS-96 emulator from Olivier Galibert / MAME.
 The LA32 emulator is based on the decap by [John McMaster](https://siliconprawn.org).
 
+![Nuked-MT32 front panel, playing](docs/panel-playing.png)
+
+The window is a front panel: the buttons are clickable, the volume knob is
+draggable, and the display is the real emulated LCD driven by the firmware.
+Above, `RHYTHM` is held and the knob is at 74% - the text on the display is the
+MT-32 firmware reacting to those inputs, not something drawn on top.
+
+<p align="center">
+  <img src="docs/panel-boot.png" width="49%" alt="boot splash">
+  <img src="docs/panel-idle.png" width="49%" alt="idle display">
+</p>
+
+The panel follows the shape of the real unit but carries plain functional
+labels and no manufacturer branding or logo.
+
 ## Status
 
 Honest state of things, from upstream plus what has been verified here:
@@ -103,8 +118,8 @@ Debian/Ubuntu: `apt install cmake libsdl2-dev libasound2-dev`
 ./build/nuked-mt32 -c MT32_CONTROL.ROM -p MT32_PCM.ROM
 ```
 
-Keys: `1`-`0` are the front panel buttons, `-`/`=` move the volume knob,
-`Esc` quits.
+Click the front panel buttons, or press `1`-`0`. Drag the volume knob, or use
+`-`/`=`. `Esc` quits.
 
 MIDI input is automatic. On macOS the emulator publishes a virtual CoreMIDI
 destination named **Nuked-MT32** - select it as the output in any DAW or MIDI
@@ -149,6 +164,9 @@ regressions are diffable - useful while chasing the LA32 bugs.
   filenames in the working directory.
 - Added `mt32-render`, a headless renderer with a Standard MIDI File parser.
 - HiDPI-correct rendering, vsync, and clean shutdown of audio/MIDI/GL.
+- A hardware-style front panel with clickable buttons and a draggable volume
+  knob, drawn with the LCD controller's own font so it needs no font
+  dependency. Upstream showed only the bare LCD.
 
 ## License
 

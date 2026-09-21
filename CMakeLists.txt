@@ -60,7 +60,7 @@ endif()
 
 find_package(OpenGL REQUIRED)
 
-add_executable(nuked-mt32 main.cpp ${MIDI_BACKEND})
+add_executable(nuked-mt32 main.cpp panel.cpp ${MIDI_BACKEND})
 target_link_libraries(nuked-mt32 PRIVATE mt32core ${SDL2_TARGET} OpenGL::GL)
 
 if(APPLE)

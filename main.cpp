@@ -22,9 +22,11 @@
 #include "mt32.h"
 #include "midi.h"
 #include "rom.h"
+#include "panel.h"
 
 static SDL_Window *window;
 static SDL_GLContext gl_context;
+static uint32_t panel_buffer[panel_h * panel_w];
 
 mt32_t mt32;
 
@@ -56,7 +58,8 @@ static void usage(const char *argv0)
         "ROM images are copyrighted Roland firmware and are NOT distributed\n"
         "with this program. Supply your own, dumped from hardware you own.\n"
         "\n"
-        "Keys:  1-0  front panel buttons      -/=  volume knob down/up\n",
+        "Front panel: click the buttons, or press 1-0. Drag the volume knob,\n"
+        "or use -/= . Esc quits.\n",
         argv0);
 }
 
@@ -145,8 +148,8 @@ int main(int argc, char **argv)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-    int w = lcd_w * scale;
-    int h = lcd_h * scale;
+    int w = panel_w * scale;
+    int h = panel_h * scale;
 
     window = SDL_CreateWindow("Nuked-MT32",
                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
@@ -169,6 +172,11 @@ int main(int argc, char **argv)
     SDL_GL_SetSwapInterval(1);
 
     mt32.button = 0;
+
+    int  mouse_button = -1;   // panel button currently held by the mouse
+    bool knob_drag    = false;
+    int  knob_ref_y   = 0;
+    int  knob_ref_val = 0;
 
     GLuint lcd_tex;
     glGenTextures(1, &lcd_tex);
@@ -208,8 +216,9 @@ int main(int argc, char **argv)
         int dw, dh;
         SDL_GL_GetDrawableSize(window, &dw, &dh);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, lcd_w, lcd_h, 0,
-                     GL_RGBA, GL_UNSIGNED_BYTE, mt32.lcd_buffer);
+        panel_render(mt32, panel_buffer);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, panel_w, panel_h, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, panel_buffer);
 
         glViewport(0, 0, dw, dh);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -259,6 +268,47 @@ int main(int argc, char **argv)
                     if (event.type == SDL_KEYDOWN) mt32.button |=  (1u << bit);
                     else                           mt32.button &= ~(1u << bit);
                 }
+                break;
+            }
+
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP: {
+                if (event.button.button != SDL_BUTTON_LEFT)
+                    break;
+                int ww, wh;
+                SDL_GetWindowSize(window, &ww, &wh);
+                int px = ww ? event.button.x * panel_w / ww : 0;
+                int py = wh ? event.button.y * panel_h / wh : 0;
+
+                if (event.type == SDL_MOUSEBUTTONDOWN) {
+                    int b = panel_hit_button(px, py);
+                    if (b >= 0) {
+                        mouse_button = b;
+                        mt32.button |= (1u << b);
+                    } else if (panel_hit_knob(px, py)) {
+                        knob_drag = true;
+                        knob_ref_y = event.button.y;
+                        knob_ref_val = mt32.knob;
+                    }
+                } else {
+                    if (mouse_button >= 0) {
+                        mt32.button &= ~(1u << mouse_button);
+                        mouse_button = -1;
+                    }
+                    knob_drag = false;
+                }
+                break;
+            }
+
+            case SDL_MOUSEMOTION: {
+                if (!knob_drag)
+                    break;
+                // Drag up to raise, down to lower; full sweep over ~200 px.
+                int dy = knob_ref_y - event.motion.y;
+                int v = knob_ref_val + dy * 1024 / 200;
+                if (v < 0) v = 0;
+                if (v > 1023) v = 1023;
+                mt32.knob = v;
                 break;
             }
 
