@@ -49,8 +49,47 @@ jobs:
         run: cmake --build build --config Release -j 4
 
       # The self test needs copyrighted Roland firmware, which is not in this
-      # repository and never will be. CI can only prove that it builds.
-      - name: Check tools respond
+      # repository and never will be, so CI cannot check emulation output.
+      # It can still prove the binaries actually RUN on each platform and
+      # behave correctly when handed something that is not a ROM.
+      - name: Run the tools
         shell: bash
         run: |
-          find build -name 'mt32-romid*' -type f -perm -u+x -exec {} \; || true
+          set -e
+          EXE=""
+          [ "$RUNNER_OS" = "Windows" ] && EXE=".exe"
+          BIN=build
+          [ -d build/Release ] && BIN=build/Release
+
+          echo "--- --help must succeed ---"
+          "$BIN/mt32-render$EXE" --help > /dev/null
+          "$BIN/mt32-romid$EXE"  > /dev/null || true
+
+          echo "--- mt32-romid must identify a non-ROM as unusable ---"
+          printf 'this is not a rom' > notarom.bin
+          out=$("$BIN/mt32-romid$EXE" notarom.bin)
+          echo "$out"
+          echo "$out" | grep -q "not usable by this core"
+          echo "$out" | grep -q "0 usable control ROM"
+
+          echo "--- a wrong-sized control ROM must fail loudly, not silently ---"
+          head -c 4096 /dev/urandom > bad.rom
+          if "$BIN/mt32-selftest$EXE" bad.rom bad.rom > sel.txt 2>&1; then
+            echo "FAIL: selftest exited 0 on a bad ROM"; cat sel.txt; exit 1
+          fi
+          cat sel.txt
+          grep -q "expected" sel.txt
+
+          echo "--- SysEx validation must reject a malformed MIDI file ---"
+          python3 - <<'EOF'
+import struct
+# F0 with no SMF length prefix: the classic malformed-SysEx case
+trk = b'\x00\xf0\x41\x10\x16\x12\x20\x00\x00\x01\xf7' + b'\x00\xff\x2f\x00'
+open('bad.mid','wb').write(
+    b'MThd' + struct.pack('>IHHH',6,0,1,480) +
+    b'MTrk' + struct.pack('>I',len(trk)) + trk)
+EOF
+          "$BIN/mt32-render$EXE" -c bad.rom -p bad.rom -m bad.mid -o /dev/null > r.txt 2>&1 || true
+          cat r.txt
+
+          echo "all tool checks passed on $RUNNER_OS"
