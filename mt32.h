@@ -111,4 +111,10 @@ public:
     void clock(uint64_t samples);
     void post_midi(uint8_t byte);
 
+    // The 20 characters currently latched into the LCD controller, in the
+    // controller's own character set. Lets headless tools read the display
+    // without rasterizing and OCRing lcd_buffer.
+    const uint8_t *lcd_text() const { return lcd_data; }
+    bool lcd_is_on() const { return lcd_display_on != 0; }
+
 };
