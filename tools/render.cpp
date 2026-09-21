@@ -64,8 +64,10 @@ struct Reader {
 };
 
 static bool parse_smf(const std::vector<uint8_t> &data,
-                      std::vector<MidiEvent> &out, std::string &err)
+                      std::vector<MidiEvent> &out, std::string &err,
+                      int &sysex_warnings)
 {
+    sysex_warnings = 0;
     Reader r{data.data(), data.data() + data.size()};
 
     if (data.size() < 14 || memcmp(data.data(), "MThd", 4) != 0) {
@@ -124,6 +126,12 @@ static bool parse_smf(const std::vector<uint8_t> &data,
                 std::vector<uint8_t> msg;
                 if (b == 0xf0) msg.push_back(0xf0);
                 for (uint32_t i = 0; i < len && r.p < tend; i++) msg.push_back(r.u8());
+                // A well-formed SysEx event ends with F7. If it does not, the
+                // length was wrong and we have just swallowed whatever events
+                // followed - which shows up later as inexplicable stuck notes.
+                // Warn rather than fail: the rest of the file may still be fine.
+                if (msg.empty() || msg.back() != 0xf7)
+                    sysex_warnings++;
                 evs.push_back({tick, msg, false, 0});
                 continue;
             }
@@ -189,6 +197,9 @@ static void usage(const char *a0)
         "  -m, --midi PATH      Standard MIDI File to play (optional)\n"
         "  -t, --seconds N      Render length; default = MIDI length + 2s, or 5\n"
         "  -o, --out PATH       Output WAV (default out.wav)\n"
+        "  -w, --warmup N       Seconds to run before the MIDI starts, so the\n"
+        "                       machine is booted. Default: wait until the front\n"
+        "                       panel reaches its idle display. 0 disables.\n"
         "      --dc-block       Remove the DC offset, as the real unit's AC\n"
         "                       coupled output does. A mitigation, not a fix -\n"
         "                       see FINDINGS.md.\n"
@@ -202,6 +213,7 @@ int main(int argc, char **argv)
 {
     std::string control_path, pcm_path, midi_path, out_path = "out.wav";
     double seconds = -1.0;
+    double warmup = -1.0;     // <0 means "detect"
     bool dc_block = false;
 
     for (int i = 1; i < argc; i++) {
@@ -217,6 +229,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "-o") || !strcmp(a, "--out"))     out_path = next(a);
         else if (!strcmp(a, "-t") || !strcmp(a, "--seconds")) seconds = atof(next(a));
         else if (!strcmp(a, "--dc-block")) dc_block = true;
+        else if (!strcmp(a, "-w") || !strcmp(a, "--warmup")) warmup = atof(next(a));
         else { fprintf(stderr, "error: unknown argument \"%s\"\n", a); return 1; }
     }
 
@@ -244,15 +257,46 @@ int main(int argc, char **argv)
         size_t rd = fread(data.data(), 1, data.size(), f);
         fclose(f);
         data.resize(rd);
-        if (!parse_smf(data, events, err)) {
+        int sysex_warnings = 0;
+        if (!parse_smf(data, events, err, sysex_warnings)) {
             fprintf(stderr, "error: %s: %s\n", midi_path.c_str(), err.c_str());
             return 1;
         }
         printf("  midi:    %s (%zu events)\n", midi_path.c_str(), events.size());
+        if (sysex_warnings)
+            fprintf(stderr,
+                    "  WARNING: %d SysEx block(s) do not end with F7. The file's\n"
+                    "           SysEx lengths look wrong, so following events may\n"
+                    "           have been consumed. Expect missing or stuck notes.\n",
+                    sysex_warnings);
     }
 
     if (seconds < 0) {
         seconds = events.empty() ? 5.0 : events.back().time + 2.0;
+    }
+
+    // The MT-32 takes a couple of seconds to boot and ignores MIDI until it
+    // has. Without this the opening bars of a file are silently dropped.
+    if (warmup != 0.0) {
+        double elapsed = 0.0;
+        const double limit = (warmup > 0.0) ? warmup : 6.0;
+        bool ready = false;
+        while (elapsed < limit) {
+            mt32.clock(256);
+            elapsed += 256.0 / SAMPLE_RATE;
+            if (warmup < 0.0) {
+                // Idle display reached: the unit is listening.
+                const uint8_t *d = mt32.lcd_text();
+                std::string t;
+                for (int i = 0; i < 20; i++)
+                    t += (d[i] >= 0x20 && d[i] < 0x7f) ? char(d[i]) : ' ';
+                if (t.find("vol:") != std::string::npos) { ready = true; break; }
+            }
+        }
+        printf("  warmup:  %.2fs%s\n", elapsed,
+               warmup < 0.0 ? (ready ? " (idle display reached)"
+                                     : " (timed out waiting for idle display)")
+                            : "");
     }
 
     FILE *out = fopen(out_path.c_str(), "wb");

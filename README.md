@@ -71,6 +71,27 @@ the jacks. Pass `--dc-block` to `nuked-mt32` or `mt32-render` to high-pass it
 out. That is a mitigation of the symptom, not a fix for the cause - see
 `FINDINGS.md`. It is off by default.
 
+## MIDI test battery
+
+`tests/` generates a corpus of Standard MIDI Files that stress MT-32 specific
+behaviour, renders them, and checks the output for crashes, hangs, stuck notes,
+unexpected silence, clipping and non-determinism.
+
+```sh
+python3 tests/make_midis.py tests/midi
+python3 tests/run_battery.py CONTROL.ROM PCM.ROM tests/midi ./build/mt32-render
+```
+
+The 16 cases cover all 128 timbres, the full rhythm map, 40-voice polyphony
+past the 32-partial limit, all eight parts at once, heavy and long SysEx, a
+reset mid-note, controllers, note and velocity extremes, 400 very short notes,
+rapid program changes, and two period-correct behaviours: MIDI channel 1 is
+unassigned so it must stay silent, and CC120 All Sound Off postdates the MT-32
+so it must be ignored. Every file is rendered twice and the audio hashed, so
+non-determinism fails the run.
+
+Requires numpy.
+
 ## Self test
 
 ```sh
